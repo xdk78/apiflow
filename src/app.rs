@@ -1,39 +1,14 @@
+use crate::http_client::{HTTPClientBuilder, HTTPMethod};
+use serde::{Deserialize, Serialize};
 use ureq::*;
 
-#[derive(Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-enum HTTPMethod {
-    Get,
-    Post,
-    Put,
-    Delete,
-    Patch,
-    Head,
-    Options,
-}
-
-impl std::fmt::Display for HTTPMethod {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            HTTPMethod::Get => write!(f, "GET"),
-            HTTPMethod::Post => write!(f, "POST"),
-            HTTPMethod::Put => write!(f, "PUT"),
-            HTTPMethod::Delete => write!(f, "DELETE"),
-            HTTPMethod::Patch => write!(f, "PATCH"),
-            HTTPMethod::Head => write!(f, "HEAD"),
-            HTTPMethod::Options => write!(f, "OPTIONS"),
-        }
-    }
-}
-
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Serialize, Deserialize, PartialEq, Clone)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct ApiFlowApp {
     url: String,
     request_body: String,
     response_body: Result<String, String>,
-    #[serde(skip)]
     selected_http_method: HTTPMethod,
 }
 
@@ -133,31 +108,18 @@ impl eframe::App for ApiFlowApp {
                 ui.label("Url: ");
                 ui.text_edit_singleline(&mut self.url);
                 if ui.button("Send").clicked() {
-                    let response = ureq::request(&self.selected_http_method.to_string(), &self.url)
-                        .set("Example-Header", "header value")
-                        .call();
+                    let mut client = HTTPClientBuilder::new()
+                        .with_http_method(self.selected_http_method)
+                        .with_url(self.url.clone())
+                        .with_header(
+                            String::from("Content-Type"),
+                            String::from("application/json"),
+                        )
+                        .build();
 
-                    match response {
-                        Ok(response) => {
-                            if response.status() == 200 {
-                                let body = response.into_string();
-                                match body {
-                                    Ok(body) => {
-                                        self.response_body = Ok(body);
-                                    }
-                                    Err(err) => {
-                                        self.response_body = Err(err.to_string());
-                                    }
-                                }
-                            } else {
-                                self.response_body =
-                                    Err(format!("HTTP Error: {}", response.status()));
-                            }
-                        }
-                        Err(err) => {
-                            self.response_body = Err(err.to_string());
-                        }
-                    }
+                    client.send_request(Some(self.request_body.clone()));
+
+                    self.response_body = client.response_body;
                 }
             });
             ui.horizontal(|ui| {
