@@ -154,6 +154,7 @@ dependencies = [
  "image",
  "log",
  "serde",
+ "serde_json",
  "ureq",
  "wasm-bindgen-futures",
 ]

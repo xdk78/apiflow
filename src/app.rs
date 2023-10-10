@@ -8,7 +8,7 @@ use ureq::*;
 pub struct ApiFlowApp {
     url: String,
     request_body: String,
-    response_body: Result<String, String>,
+    response_body: Option<String>,
     selected_http_method: HTTPMethod,
 }
 
@@ -17,7 +17,7 @@ impl Default for ApiFlowApp {
         Self {
             url: "http://127.0.0.1".to_owned(),
             request_body: "".to_owned(),
-            response_body: Ok("".to_owned()),
+            response_body: None,
             selected_http_method: HTTPMethod::Get,
         }
     }
@@ -119,7 +119,15 @@ impl eframe::App for ApiFlowApp {
 
                     client.send_request(Some(self.request_body.clone()));
 
-                    self.response_body = client.response_body;
+                    match client.response {
+                        Ok(response) => {
+                            self.response_body =
+                                Some(response.into_string().unwrap_or(String::new()));
+                        }
+                        Err(error) => {
+                            self.response_body = Some(error.to_string());
+                        }
+                    }
                 }
             });
             ui.horizontal(|ui| {
@@ -135,7 +143,7 @@ impl eframe::App for ApiFlowApp {
 
                 ui.vertical(|ui| {
                     ui.heading("Response");
-                    if let Ok(response_buffer) = self.response_body.as_mut() {
+                    if let Some(response_buffer) = self.response_body.as_mut() {
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             ui.add(
                                 egui::TextEdit::multiline(response_buffer)
@@ -145,7 +153,7 @@ impl eframe::App for ApiFlowApp {
                             );
                         });
                     } else {
-                        ui.label(self.response_body.as_ref().unwrap_err());
+                        ui.label(self.response_body.as_ref().unwrap_or(&String::from("")));
                     }
                 });
             });

@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use ureq::serde_json;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Copy)]
 pub enum HTTPMethod {
@@ -63,20 +62,21 @@ impl HTTPClientBuilder {
             http_method: self.http_method,
             url: self.url,
             headers: self.headers,
-            response_body: Ok(String::new()),
+            response: ureq::Response::new(200, "OK", "body"),
         }
     }
 }
 
+#[derive(Debug)]
 pub struct HTTPClient {
-    pub http_method: HTTPMethod,
-    pub url: String,
-    pub headers: HashMap<String, String>,
-    pub response_body: Result<String, String>,
+    http_method: HTTPMethod,
+    url: String,
+    headers: HashMap<String, String>,
+    pub response: Result<ureq::Response, ureq::Error>,
 }
 
 impl HTTPClient {
-    pub fn send_request(&mut self, data: Option<impl serde::Serialize>) {
+    pub fn send_request<T: serde::Serialize>(&mut self, data: Option<T>) {
         let mut request = ureq::request(&self.http_method.to_string(), &self.url);
 
         for (key, value) in &self.headers {
@@ -84,29 +84,19 @@ impl HTTPClient {
         }
 
         let response = match data {
-            // TODO: handle error
-            Some(data) => request.send_json(serde_json::to_value(data).unwrap()),
+            Some(data) => {
+                let data = serde_json::to_value(data).unwrap_or(serde_json::Value::Null);
+                request.send_json(data)
+            }
             None => request.call(),
         };
 
         match response {
             Ok(response) => {
-                if response.status() == 200 {
-                    let body = response.into_string();
-                    match body {
-                        Ok(body) => {
-                            self.response_body = Ok(body);
-                        }
-                        Err(err) => {
-                            self.response_body = Err(err.to_string());
-                        }
-                    }
-                } else {
-                    self.response_body = Err(format!("HTTP Error: {}", response.status()));
-                }
+                self.response = Ok(response);
             }
             Err(err) => {
-                self.response_body = Err(err.to_string());
+                self.response = Err(err);
             }
         }
     }
