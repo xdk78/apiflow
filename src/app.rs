@@ -69,7 +69,7 @@ impl eframe::App for ApiFlowApp {
 
             ui.horizontal(|ui| {
                 egui::ComboBox::from_id_source("http method")
-                    .selected_text(format!("{:?}", self.selected_http_method))
+                    .selected_text(self.selected_http_method.to_string())
                     .show_ui(ui, |ui| {
                         ui.style_mut().wrap = Some(false);
                         ui.set_min_width(60.0);
@@ -119,15 +119,11 @@ impl eframe::App for ApiFlowApp {
 
                     client.send_request(Some(self.request_body.clone()));
 
-                    match client.response {
-                        Ok(response) => {
-                            self.response_body =
-                                Some(response.into_string().unwrap_or(String::new()));
-                        }
-                        Err(error) => {
-                            self.response_body = Some(error.to_string());
-                        }
-                    }
+                    self.response_body = client
+                        .response
+                        .map(|response| response.into_string().unwrap_or_default())
+                        .map_err(|error| error.to_string())
+                        .ok();
                 }
             });
             ui.horizontal(|ui| {
