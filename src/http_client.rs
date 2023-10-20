@@ -52,8 +52,8 @@ impl HTTPClientBuilder {
         Self { url, ..self }
     }
 
-    pub fn with_header(mut self, key: String, value: String) -> Self {
-        self.headers.insert(key, value);
+    pub fn with_headers(mut self, headers: HashMap<String, String>) -> Self {
+        self.headers = headers;
         self
     }
 

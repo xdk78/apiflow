@@ -2,6 +2,8 @@ use crate::http_client::{HTTPClientBuilder, HTTPMethod};
 use serde::{Deserialize, Serialize};
 use ureq::*;
 
+const MAX_WIDTH_FACTOR: f32 = 3.0;
+
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -10,6 +12,7 @@ pub struct ApiFlowApp {
     request_body: String,
     response_body: Option<String>,
     selected_http_method: HTTPMethod,
+    request_headers: Vec<(String, String)>,
 }
 
 impl Default for ApiFlowApp {
@@ -19,6 +22,7 @@ impl Default for ApiFlowApp {
             request_body: "".to_owned(),
             response_body: None,
             selected_http_method: HTTPMethod::Get,
+            request_headers: vec![],
         }
     }
 }
@@ -111,9 +115,11 @@ impl eframe::App for ApiFlowApp {
                     let mut client = HTTPClientBuilder::new()
                         .with_http_method(self.selected_http_method)
                         .with_url(self.url.clone())
-                        .with_header(
-                            String::from("Content-Type"),
-                            String::from("application/json"),
+                        .with_headers(
+                            self.request_headers
+                                .iter()
+                                .map(|(key, value)| (key.clone(), value.clone()))
+                                .collect(),
                         )
                         .build();
 
@@ -126,13 +132,35 @@ impl eframe::App for ApiFlowApp {
                         .ok();
                 }
             });
+
+            ui.horizontal(|ui| {
+                ui.vertical(|ui| {
+                    ui.heading("Request Headers");
+                    ui.horizontal(|ui| {
+                        ui.label("Key");
+                        ui.add_space(ui.available_width() / MAX_WIDTH_FACTOR);
+                        ui.label("Value");
+                    });
+                    // TODO: add a button to remove a header
+                    self.request_headers.iter_mut().for_each(|(key, value)| {
+                        ui.horizontal(|ui| {
+                            ui.text_edit_singleline(key);
+                            ui.text_edit_singleline(value);
+                        });
+                    });
+                    if ui.button("Add").clicked() {
+                        self.request_headers.push((String::new(), String::new()));
+                    }
+                });
+            });
+
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
                     ui.heading("Request body");
                     ui.add(
                         egui::TextEdit::multiline(&mut self.request_body)
                             .desired_rows(32)
-                            .desired_width(ui.available_width() / 3.0)
+                            .desired_width(ui.available_width() / MAX_WIDTH_FACTOR)
                             .code_editor(),
                     );
                 });
